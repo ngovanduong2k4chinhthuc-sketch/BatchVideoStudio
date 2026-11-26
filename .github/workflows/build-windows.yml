@@ -1,0 +1,46 @@
+
+name: Build Windows Portable ZIP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download FFmpeg
+        shell: pwsh
+        working-directory: BatchVideoStudio_Portable_Project
+        run: |
+          Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath unpack
+          $folder = Get-ChildItem unpack -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Force ffmpeg/bin | Out-Null
+          Copy-Item "$($folder.FullName)/bin/ffmpeg.exe" ffmpeg/bin/
+          Copy-Item "$($folder.FullName)/bin/ffprobe.exe" ffmpeg/bin/
+
+      - name: Install PyInstaller
+        run: python -m pip install pyinstaller
+
+      - name: Build EXE
+        working-directory: BatchVideoStudio_Portable_Project
+        run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name BatchVideoStudio batch_video_studio.py
+
+      - name: Package portable ZIP
+        shell: pwsh
+        working-directory: BatchVideoStudio_Portable_Project
+        run: |
+          New-Item -ItemType Directory -Force dist/BatchVideoStudio/ffmpeg/bin | Out-Null
+          Copy-Item ffmpeg/bin/*.exe dist/BatchVideoStudio/ffmpeg/bin/
+          Compress-Archive -Path dist/BatchVideoStudio -DestinationPath ../BatchVideoStudio_Portable_Windows.zip -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BatchVideoStudio_Portable_Windows
+          path: BatchVideoStudio_Portable_Windows.zip
